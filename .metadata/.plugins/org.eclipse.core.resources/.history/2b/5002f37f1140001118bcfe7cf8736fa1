@@ -1,0 +1,21 @@
+import whisper
+import sounddevice as sd
+import numpy as np
+import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
+
+model = whisper.load_model("base")
+print("Whisper pronto.", flush=True)
+
+while True:
+    audio = sd.rec(int(4 * 16000), samplerate=16000, channels=1, dtype='float32')
+    sd.wait()
+    audio = audio.flatten()
+    result = model.transcribe(audio, 
+        language="pt", 
+        fp16=False,
+        initial_prompt="Jarvis abra youtube google calculadora spotify discord valorant assassinos creed wallpaper engine desligar reiniciar cancelar")
+    texto = result["text"].strip().lower()
+    if texto:
+        print(texto, flush=True)

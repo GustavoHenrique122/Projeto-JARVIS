@@ -1,0 +1,13 @@
+public class vozes {
+
+    public static void main(String[] args) throws Exception {
+
+        String script = "Add-Type -AssemblyName System.Speech; " +
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+            "$s.GetInstalledVoices() | ForEach-Object { Write-Host $_.VoiceInfo.Name };";
+
+        ProcessBuilder pb = new ProcessBuilder("powershell", "-Command", script);
+        pb.inheritIO();
+        pb.start().waitFor();
+    }
+}

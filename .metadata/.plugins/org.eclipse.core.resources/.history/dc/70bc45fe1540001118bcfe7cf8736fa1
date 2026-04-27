@@ -1,0 +1,119 @@
+import sounddevice as sd
+import numpy as np
+import sys
+import unicodedata
+import re
+import os
+import warnings
+from faster_whisper import WhisperModel
+
+# ==============================
+# CONFIG INICIAL (LIMPA AVISOS)
+# ==============================
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+warnings.filterwarnings("ignore")
+sys.stdout.reconfigure(encoding='utf-8')
+
+# ==============================
+# CONFIGURAÇÕES
+# ==============================
+SAMPLE_RATE = 16000
+LIMIAR_VOZ = 0.005        # sensibilidade (abaixa se não detectar)
+SILENCIO_LIMIAR = 0.003   # silêncio para parar gravação
+CHUNK = 0.5               # tempo de captura (segundos)
+
+# 🔊 DEFINE MICROFONE (MUDE SE PRECISAR)
+# print(sd.query_devices())  # descomente pra ver lista
+sd.default.device = None   # ou coloque um número tipo 1, 2, 3...
+
+# ==============================
+# MODELO (RÁPIDO)
+# ==============================
+model = WhisperModel("base", compute_type="int8")
+
+# ==============================
+# COMANDOS
+# ==============================
+COMANDOS = [
+    "youtube", "google", "calculadora", "spotify",
+    "discord", "valorant", "parede",
+    "desligar", "reiniciar", "cancelar",
+    "parar", "jarvis", "chat"
+]
+
+# ==============================
+# FUNÇÕES
+# ==============================
+def normalizar(txt):
+    return unicodedata.normalize('NFKD', txt)\
+        .encode('ascii', 'ignore')\
+        .decode('ascii')\
+        .lower()
+
+def contem_palavra(frase, palavra):
+    return re.search(r'\b' + re.escape(palavra) + r'\b', frase)
+
+def detectar_voz():
+    """Espera até detectar voz"""
+    while True:
+        audio = sd.rec(int(CHUNK * SAMPLE_RATE),
+                       samplerate=SAMPLE_RATE,
+                       channels=1,
+                       dtype='float32')
+        sd.wait()
+
+        volume = np.abs(audio).mean()
+
+        if volume >= LIMIAR_VOZ:
+            return audio
+
+def gravar_ate_silencio(primeiro_trecho):
+    """Grava até detectar silêncio"""
+    buffer = [primeiro_trecho]
+
+    while True:
+        trecho = sd.rec(int(CHUNK * SAMPLE_RATE),
+                        samplerate=SAMPLE_RATE,
+                        channels=1,
+                        dtype='float32')
+        sd.wait()
+
+        buffer.append(trecho)
+
+        volume = np.abs(trecho).mean()
+
+        if volume < SILENCIO_LIMIAR:
+            break
+
+    return np.concatenate(buffer).flatten()
+
+def transcrever(audio):
+    segments, _ = model.transcribe(audio, language="pt")
+    texto = " ".join(seg.text for seg in segments)
+    return normalizar(texto.strip())
+
+# ==============================
+# LOOP PRINCIPAL
+# ==============================
+print("Jarvis ouvindo...", flush=True)
+
+while True:
+    try:
+        # 1. Espera voz
+        primeiro = detectar_voz()
+
+        # 2. Grava comando completo
+        audio = gravar_ate_silencio(primeiro)
+
+        # 3. Transcreve
+        texto = transcrever(audio)
+
+        if len(texto) < 3:
+            continue
+
+        # 5. Verifica comandos
+        if any(contem_palavra(texto, cmd) for cmd in COMANDOS):
+            print(texto, flush=True)
+
+    except Exception as e:
+        print("Erro:", e)

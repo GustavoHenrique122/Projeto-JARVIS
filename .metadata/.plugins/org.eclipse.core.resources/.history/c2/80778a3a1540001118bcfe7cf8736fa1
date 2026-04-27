@@ -1,0 +1,68 @@
+import sounddevice as sd
+import numpy as np
+import sys
+import unicodedata
+import re
+from faster_whisper import WhisperModel
+
+sys.stdout.reconfigure(encoding='utf-8')
+
+# MODELO MAIS RÁPIDO
+model = WhisperModel("base", compute_type="int8")  # muito mais leve
+
+SAMPLE_RATE = 16000
+LIMIAR_VOZ = 0.02
+SILENCIO_LIMIAR = 0.01
+
+COMANDOS = ["youtube", "google", "calculadora", "spotify",
+            "discord", "valorant", "parede", "desligar",
+            "reiniciar", "cancelar", "parar", "jarvis", "chat"]
+
+def normalizar(txt):
+    return unicodedata.normalize('NFKD', txt)\
+        .encode('ascii', 'ignore')\
+        .decode('ascii')\
+        .lower()
+
+def contem_palavra(frase, palavra):
+    return re.search(r'\b' + re.escape(palavra) + r'\b', frase)
+
+def ouvir():
+    while True:
+        audio = sd.rec(int(0.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
+                       channels=1, dtype='float32')
+        sd.wait()
+
+        volume = np.abs(audio).mean()
+
+        if volume < LIMIAR_VOZ:
+            continue
+
+        # Detectou voz → grava até silêncio
+        buffer = [audio]
+
+        while True:
+            trecho = sd.rec(int(0.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
+                            channels=1, dtype='float32')
+            sd.wait()
+
+            buffer.append(trecho)
+
+            if np.abs(trecho).mean() < SILENCIO_LIMIAR:
+                break
+
+        audio_final = np.concatenate(buffer).flatten()
+
+        segments, _ = model.transcribe(audio_final, language="pt")
+
+        texto = " ".join([seg.text for seg in segments])
+        texto = normalizar(texto)
+
+        if len(texto) < 3:
+            continue
+
+        # Só ativa se falar jarvis
+        if not contem_palavra(texto, "jarvis"):
+            continue
+
+        print(texto, flush=True)

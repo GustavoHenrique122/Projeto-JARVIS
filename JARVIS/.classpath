@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/cmu_us_kal.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/cmulex.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/en_us.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/freetts.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/freetts-jsapi10.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/jna-5.13.0.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/json-20240303.jar"/>
+	<classpathentry kind="lib" path="C:/programacao/JARVIS/JARVIS/lib/vosk-0.3.45.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

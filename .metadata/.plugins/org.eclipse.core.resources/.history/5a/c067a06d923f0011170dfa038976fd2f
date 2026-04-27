@@ -1,0 +1,202 @@
+import org.vosk.Model;
+import org.vosk.Recognizer;
+import javax.sound.sampled.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.net.*;
+
+public class Main {
+
+    public static void falar(String texto) throws Exception {
+        String script = "Add-Type -AssemblyName System.Speech; " +
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+            "$s.SelectVoice('Microsoft Maria Desktop'); " +
+            "$s.Speak('" + texto + "');";
+        new ProcessBuilder("powershell", "-Command", script).start().waitFor();
+    }
+
+    public static String perguntarIA(String pergunta) throws Exception {
+        URL url = new URL("http://localhost:11434/api/generate");
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("POST");
+        con.setRequestProperty("Content-Type", "application/json");
+        con.setDoOutput(true);
+        con.setConnectTimeout(5000);
+        con.setReadTimeout(60000);
+
+        String body = "{\"model\":\"llama3.2:1b\",\"prompt\":\"Responda em portugues: " + pergunta + "\",\"stream\":false}";
+
+        try (OutputStream os = con.getOutputStream()) {
+            os.write(body.getBytes("utf-8"));
+        }
+
+        StringBuilder resposta = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(con.getInputStream(), "utf-8"))) {
+            String linha;
+            while ((linha = br.readLine()) != null) {
+                resposta.append(linha);
+            }
+        }
+
+        // Extrai só o campo "response" do JSON
+        String json = resposta.toString();
+        int inicio = json.indexOf("\"response\":\"") + 12;
+        int fim = json.indexOf("\"", inicio);
+        return json.substring(inicio, fim).replace("\\n", " ").trim();
+    }
+
+    public static void executar(String cmd) throws Exception {
+
+    	if (cmd.contains("jã¡") || cmd.contains("james") || cmd.contains("jardim") || cmd.contains("jardins") || cmd.contains("computador") || cmd.contains("jazz"))  {
+
+	        if (cmd.contains("youtube") || cmd.contains("outubro")) {
+	            falar("Quero não");
+	            new ProcessBuilder("cmd", "/c", "start", "https://youtube.com").start();
+	        }
+	
+	        else if (cmd.contains("google")) {
+	            falar("pede com geitinho");
+	            new ProcessBuilder("cmd", "/c", "start", "https://google.com").start();
+	        }
+	        
+	        else if (cmd.contains("roleta")) {
+	            falar("isso di novo");
+	            new ProcessBuilder("cmd", "/c", "start", "https://spinthewheel.io/pt").start();
+	        }
+	        
+	        else if (cmd.contains("chaves") || cmd.contains("chatices") || cmd.contains("chat")) {
+	            falar("Beleza");
+	            new ProcessBuilder("cmd", "/c", "start", "https://chatgpt.com/").start();
+	        }
+	
+	        else if (cmd.contains("calculadora")) {
+	            falar("beleza");
+	            new ProcessBuilder("cmd", "/c", "start", "calc").start();
+	        }
+	        
+	        else if (cmd.contains("esporte") || cmd.contains("esportes") || cmd.contains("pai")) {
+	            falar("beleza chefe");
+	            new ProcessBuilder("C:/Users/gusta/AppData/Roaming/Spotify/Spotify.exe").start();
+	        }
+	
+	        else if (cmd.contains("assassinos")) {
+	            falar("que relaxar né");
+	            new ProcessBuilder("powershell", "-Command",
+	                "Start-Process 'D:/SteamLibrary/steamapps/common/Assassin's Creed Unity/ACU.exe'").start();
+	        }
+	
+	        else if (cmd.contains("valores") || cmd.contains("valor")) {
+	            falar("Esse jogo de novo");
+	            new ProcessBuilder("powershell", "-Command",
+	                "Start-Process 'C:/Riot Games/Riot Client/RiotClientServices.exe'").start();
+	        }
+	
+	        else if (cmd.contains("discorde") || cmd.contains("de escolha") || cmd.contains("escolha")) {
+	            falar("beleza chefe");
+	            new ProcessBuilder("C:/Users/gusta/AppData/Local/Discord/Update.exe",
+	                "--processStart", "Discord.exe").start();
+	        }
+	
+	        else if (cmd.contains("parede")) {
+	            falar("ta nice");
+	            new ProcessBuilder("powershell", "-Command",
+	                "Start-Process 'C:/Program Files (x86)/Steam/steamapps/common/wallpaper_engine/wallpaper64.exe'").start();
+	        }
+	        
+	        else if (cmd.contains("desligar")) {
+	            falar("Desligando o computador.");
+	            new ProcessBuilder("cmd", "/c", "shutdown /s /t 30").start();
+	        }
+	
+	        else if (cmd.contains("reiniciar") || cmd.contains("iniciar")) {
+	            falar("Reiniciando o computador.");
+	            new ProcessBuilder("cmd", "/c", "shutdown /r /t 30").start();
+	        }
+	        
+	        else if (cmd.contains("cancelar")) {
+	            falar("Desligamento cancelado.");
+	            new ProcessBuilder("cmd", "/c", "shutdown /a").start();
+	        }
+	        
+	        else if (cmd.contains("pergunta") || cmd.contains("responde") || cmd.contains("fala sobre")) {
+	            falar("Deixa eu pensar...");
+	            try {
+	                String resposta = perguntarIA(cmd);
+	                System.out.println("IA: " + resposta);
+	                falar(resposta);
+	            } catch (Exception e) {
+	                falar("Não consegui conectar com a inteligência artificial.");
+	                System.out.println("Erro IA: " + e.getMessage());
+	            }
+	        }
+	        
+	        else {
+	            falar("Era pra entender?");
+	        }
+        }
+    }
+
+        
+
+    public static void main(String[] args) throws Exception {
+
+        // Bandeja do sistema
+        if (!SystemTray.isSupported()) {
+            System.out.println("SystemTray não suportado.");
+            return;
+        }
+
+        // Ícone
+        BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(Color.CYAN);
+        g.fillOval(0, 0, 16, 16);
+        g.dispose();
+
+        // Menu do ícone
+        PopupMenu menu = new PopupMenu();
+        MenuItem sair = new MenuItem("Sair");
+        sair.addActionListener(e -> System.exit(0));
+        menu.add(sair);
+
+        // Ícone na bandeja
+        TrayIcon trayIcon = new TrayIcon(image, "Jarvis", menu);
+        trayIcon.setImageAutoSize(true);
+        SystemTray.getSystemTray().add(trayIcon);
+
+        falar("Jarvis iniciado.");
+        trayIcon.displayMessage("Jarvis", "Ouvindo...", TrayIcon.MessageType.INFO);
+
+        // Modelo
+        Model model = new Model("C:/programacao/JARVIS/JARVIS/model/vosk-model-small-pt-0.3");
+        Recognizer rec = new Recognizer(model, 16000);
+
+        // Microfone
+        TargetDataLine mic = AudioSystem.getTargetDataLine(
+            new AudioFormat(16000, 16, 1, true, false)
+        );
+
+        mic.open();
+        mic.start();
+
+        byte[] buffer = new byte[4096];
+
+        // Loop infinito
+        while (true) {
+
+            int bytesRead = mic.read(buffer, 0, buffer.length);
+
+            if (rec.acceptWaveForm(buffer, bytesRead)) {
+
+                String resultado = rec.getResult().toLowerCase();
+                System.out.println(resultado);
+
+                executar(resultado);
+            }
+
+            Thread.sleep(100);
+        }
+    }
+}

@@ -1,0 +1,14 @@
+Add-Type -AssemblyName System.Speech
+
+$reconhecedor = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$reconhecedor.SetInputToDefaultAudioDevice()
+
+$gramatica = New-Object System.Speech.Recognition.DictationGrammar
+$reconhecedor.LoadGrammar($gramatica)
+
+while ($true) {
+    $resultado = $reconhecedor.Recognize()
+    if ($resultado -ne $null) {
+        Write-Output $resultado.Text.ToLower()
+    }
+}

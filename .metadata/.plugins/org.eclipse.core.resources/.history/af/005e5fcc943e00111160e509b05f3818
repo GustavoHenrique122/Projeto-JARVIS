@@ -1,0 +1,10 @@
+public class main {
+    public static void main(String[] args) {
+        // Adiciona a pasta lib ao PATH antes de carregar
+        String libPath = System.getProperty("user.dir") + "\\lib";
+        System.setProperty("java.library.path", libPath);
+        
+        System.load(libPath + "\\vosk.dll");
+        System.out.println("Vosk carregado com sucesso!");
+    }
+}

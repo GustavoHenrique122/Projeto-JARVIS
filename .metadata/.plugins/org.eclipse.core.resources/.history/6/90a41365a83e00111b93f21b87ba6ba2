@@ -1,0 +1,83 @@
+import org.vosk.Model;
+import org.vosk.Recognizer;
+
+import java.io.IOException;
+
+import javax.sound.sampled.*;
+import com.sun.speech.freetts.*;
+
+public class Main {
+
+    static Voice voice;
+
+    public static void falar(String texto) throws InterruptedException, IOException {
+    	String script = "Add-Type -AssemblyName System.Speech; " +
+                "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+                "$s.SelectVoice('Microsoft Zira Desktop'); " +
+                "$s.Speak('" + texto + "');";
+            new ProcessBuilder("powershell", "-Command", script).start().waitFor();
+    }
+
+    public static void executar(String cmd) throws Exception {
+
+        if (cmd.contains("neymar")) {
+
+            falar("Sim, senhor.");
+
+            if (cmd.contains("youtube")) {
+                falar("Abrindo YouTube.");
+                new ProcessBuilder("cmd", "/c", "start", "https://youtube.com").start();
+            }
+
+            else if (cmd.contains("google")) {
+                falar("Abrindo Google.");
+                new ProcessBuilder("cmd", "/c", "start", "https://google.com").start();
+            }
+
+            else if (cmd.contains("calculadora")) {
+                falar("Abrindo calculadora.");
+                new ProcessBuilder("cmd", "/c", "start", "calc").start();
+            }
+
+            else {
+                falar("Não entendi.");
+            }
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        // Voz
+        falar("Jarvis iniciado.");
+
+        // Modelo
+        Model model = new Model("C:/programacao/JARVIS/JARVIS/model/vosk-model-small-pt-0.3");
+        Recognizer rec = new Recognizer(model, 16000);
+
+        // Microfone
+        TargetDataLine mic = AudioSystem.getTargetDataLine(
+            new AudioFormat(16000, 16, 1, true, false)
+        );
+
+        mic.open();
+        mic.start();
+
+        byte[] buffer = new byte[4096];
+
+        // Loop infinito
+        while (true) {
+
+            int bytesRead = mic.read(buffer, 0, buffer.length);
+
+            if (rec.acceptWaveForm(buffer, bytesRead)) {
+
+                String resultado = rec.getResult().toLowerCase();
+                System.out.println(resultado);
+
+                executar(resultado);
+            }
+
+            Thread.sleep(100);
+        }
+    }
+}

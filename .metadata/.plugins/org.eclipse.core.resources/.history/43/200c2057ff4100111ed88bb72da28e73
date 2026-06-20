@@ -1,0 +1,388 @@
+import org.vosk.Model;
+import org.vosk.Recognizer;
+import javax.sound.sampled.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.net.*;
+import java.io.*;
+import java.util.*;
+import java.util.List;
+import org.json.*;
+
+public class Main {
+
+    static Process processoFala        = null;
+    static volatile boolean parar      = false;
+    static volatile boolean iaAtiva    = false;  // controla só a IA
+    static volatile long    ultimaFala = 0;
+    static final int TIMEOUT_MS        = 30_000;
+
+    static List<JSONObject> historico  = new ArrayList<JSONObject>();
+    static final int MAX_HISTORICO     = 10;
+
+    static final List<String> PALAVRAS_ATIVACAO = new ArrayList<String>(Arrays.asList(
+		"ei jarvis", "ei james", "jarvis", "james", "jardim", "jardins", "computador", "jã¡"
+    ));
+
+    // ── Fala ──────────────────────────────────────────────────────
+    public static void falar(String texto) throws Exception {
+        parar = false;
+        texto = texto.replace("'", "");
+
+        String script =
+            "Add-Type -AssemblyName System.Speech; " +
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+            "$s.SelectVoice('Microsoft Maria Desktop'); " +
+            "$s.Speak('" + texto + "');";
+
+        processoFala = new ProcessBuilder("powershell", "-Command", script).start();
+
+        while (processoFala.isAlive()) {
+            if (parar) { processoFala.destroyForcibly(); break; }
+            Thread.sleep(100);
+        }
+    }
+
+    public static void pararFala() {
+        parar = true;
+        if (processoFala != null && processoFala.isAlive()) {
+            processoFala.destroyForcibly();
+            System.out.println("Fala interrompida.");
+        }
+    }
+
+    // ── IA com histórico ──────────────────────────────────────────
+    public static String perguntarIA(String pergunta) throws Exception {
+
+        JSONObject msgUsuario = new JSONObject();
+        msgUsuario.put("role", "user");
+        msgUsuario.put("content", pergunta);
+        historico.add(msgUsuario);
+
+        while (historico.size() > MAX_HISTORICO * 2) {
+            historico.remove(0);
+        }
+
+        JSONObject payload = new JSONObject();
+        payload.put("model", "phi3:mini");
+        payload.put("stream", false);
+
+        JSONArray msgs = new JSONArray();
+
+        JSONObject sistema = new JSONObject();
+        sistema.put("role", "system");
+        sistema.put("content",
+            "Você é o Jarvis, assistente pessoal do usuário. " +
+            "Responda SEMPRE em no máximo 2 frases curtas em português brasileiro. " +
+            "NUNCA invente leis, fundações ou informações falsas. " +
+            "Seja direto e objetivo. Se não souber algo, diga que não sabe."
+        );
+        msgs.put(sistema);
+
+        for (JSONObject m : historico) msgs.put(m);
+        payload.put("messages", msgs);
+
+        URL url = new URL("http://localhost:11434/api/chat");
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("POST");
+        con.setRequestProperty("Content-Type", "application/json");
+        con.setDoOutput(true);
+        con.setConnectTimeout(10000);
+        con.setReadTimeout(90000);
+
+        try (OutputStream os = con.getOutputStream()) {
+            os.write(payload.toString().getBytes("utf-8"));
+        }
+
+        BufferedReader br = new BufferedReader(
+            new InputStreamReader(con.getInputStream(), "utf-8"));
+        StringBuilder sb = new StringBuilder();
+        String linha;
+        while ((linha = br.readLine()) != null) sb.append(linha);
+
+        JSONObject resposta = new JSONObject(sb.toString());
+        String textoResposta = resposta
+            .getJSONObject("message")
+            .getString("content")
+            .replace("\\n", " ")
+            .trim();
+
+        JSONObject msgJarvis = new JSONObject();
+        msgJarvis.put("role", "assistant");
+        msgJarvis.put("content", textoResposta);
+        historico.add(msgJarvis);
+
+        return textoResposta;
+    }
+
+    // ── Ativação / Desativação da IA ─────────────────────────────
+    static void ativarIA() throws Exception {
+        if (!iaAtiva) {
+            iaAtiva = true;
+            ultimaFala = System.currentTimeMillis();
+            System.out.println("[Jarvis] IA ativada!");
+            falar("Sim, pode falar.");
+        }
+    }
+
+    static void desativarIA() throws Exception {
+        if (iaAtiva) {
+            iaAtiva = false;
+            pararFala();
+            System.out.println("[Jarvis] IA desativada.");
+            falar("Ok, estou aqui se precisar.");
+        }
+    }
+
+    // ── Comandos rápidos — funcionam SEMPRE ───────────────────────
+    // Retorna true se reconheceu comando, false se deve ir pra IA
+    static boolean tentarComando(String cmd) throws Exception {
+
+    	if (cmd.contains("parar") || cmd.contains("cala a boca")) {
+            pararFala(); return true;
+        }
+        if (cmd.contains("dormir") || cmd.contains("pode e") || cmd.contains("valeu")) {
+        	desativarIA(); return true;
+        }
+        if (cmd.contains("limpar") && cmd.contains("hist")) {
+            historico.clear();
+            falar("Histórico apagado."); return true;
+        }
+        if (cmd.contains("youtube") || cmd.contains("outubro")) {
+            falar("Abrindo o YouTube.");
+            new ProcessBuilder("cmd", "/c", "start", "https://youtube.com").start(); return true;
+        }
+        if (cmd.contains("roleta")) {
+            falar("isso di novo");
+            new ProcessBuilder("cmd", "/c", "start", "https://spinthewheel.io/pt").start();
+        }
+        if (cmd.contains("temperatura")) {
+            falar("Tá preocupado, senhor");
+            new ProcessBuilder("explorer.exe",
+                "shell:AppsFolder\\9426MICRO-STARINTERNATION.MSICenter_kzh8wxbdkxb8p!App").start();
+        }
+        if (cmd.contains("google")) {
+            falar("Abrindo o Google.");
+            new ProcessBuilder("cmd", "/c", "start", "https://google.com").start(); return true;
+        }
+        if (cmd.contains("chat") || cmd.contains("chaves") || cmd.contains("charge")) {
+            falar("Abrindo o ChatGPT.");
+            new ProcessBuilder("cmd", "/c", "start", "https://chatgpt.com/").start(); return true;
+        }
+        if (cmd.contains("calculadora")) {
+            falar("Beleza.");
+            new ProcessBuilder("cmd", "/c", "start", "calc").start(); return true;
+        }
+        if (cmd.contains("programar") || cmd.contains("programa")) {
+            falar("Hora de codar!");
+            new ProcessBuilder("powershell", "-Command",
+                "Start-Process 'C:\\Users\\gusta\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe'").start();
+            return true;
+        }
+        if (cmd.contains("java")) {
+            falar("Hora de codar!");
+            new ProcessBuilder("powershell", "-Command",
+                "Start-Process 'C:\\Users\\gusta\\eclipse\\java-2025-09\\eclipse\\eclipse.exe'").start();
+            return true;
+        }
+        if (cmd.contains("jogos")) {
+            falar("Vai jogar o quê?");
+            new ProcessBuilder("explorer.exe", "C:\\Users\\gusta\\Desktop\\,").start(); return true;
+        }
+        if (cmd.contains("spotify") || cmd.contains("esporte") || cmd.contains("pai")) {
+            falar("Abrindo o Spotify.");
+            new ProcessBuilder("C:/Users/gusta/AppData/Roaming/Spotify/Spotify.exe").start(); return true;
+        }
+        if (cmd.contains("valor") || cmd.contains("valores") || cmd.contains("valorante")) {
+            falar("Esse jogo de novo...");
+            new ProcessBuilder("powershell", "-Command",
+                "Start-Process 'C:/Riot Games/Riot Client/RiotClientServices.exe'").start(); return true;
+        }
+        if (cmd.contains("discorde") || cmd.contains("escolha")) {
+            falar("Beleza.");
+            new ProcessBuilder("C:/Users/gusta/AppData/Local/Discord/Update.exe",
+                "--processStart", "Discord.exe").start(); return true;
+        }
+        if (cmd.contains("desligar") || cmd.contains("ligar")) {
+            falar("Desligando em 30 segundos.");
+            new ProcessBuilder("cmd", "/c", "shutdown /s /t 30").start(); return true;
+        }
+        if (cmd.contains("reiniciar") || cmd.contains("iniciar")) {
+            falar("Reiniciando em 30 segundos.");
+            new ProcessBuilder("cmd", "/c", "shutdown /r /t 30").start(); return true;
+        }
+        if (cmd.contains("cancelar")) {
+            falar("Cancelado.");
+            new ProcessBuilder("cmd", "/c", "shutdown /a").start(); return true;
+        }
+        if (cmd.contains("fechar tudo") || cmd.contains("deixar tudo") || cmd.contains("limpar")) {
+            falar("Entendido chefe, fechando a bagunça.");
+
+            // Lista de processos que você quer fechar
+            String[] appsParaFechar = {
+            	"EALauncher.exe",
+            	"EALauncherHelper.exe",
+            	"upc.exe",
+            	"UplayWebCore.exe",
+            	"EACefSubProcess.exe",
+            	"EABackgroundService.exe",
+            	"EADesktop.exe",
+            	"steam.exe",
+            	"steamwebhelper.exe",  
+            	"TranslucentTB.exe", 
+                "brave.exe",
+                "wallpaper64.exe",
+                "sqlceip.exe",
+                "sqlservr.exe"
+            };
+            for (String app : apps) {
+                try { new ProcessBuilder("taskkill", "/F", "/IM", app, "/T").start(); }
+                catch (Exception ignored) {}
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    // ── Processamento principal ───────────────────────────────────
+    public static void processar(String texto) {
+
+        System.out.println("Reconhecido: " + texto);
+
+        // Verifica palavra de ativação
+        boolean temAtivacao = false;
+        for (String p : PALAVRAS_ATIVACAO) {
+            if (texto.contains(p)) { temAtivacao = true; break; }
+        }
+
+        // Remove palavra de ativação do comando
+        String cmd = texto;
+        for (String p : PALAVRAS_ATIVACAO) cmd = cmd.replace(p, "").trim();
+
+        // ── Modo sem IA: só tenta comandos rápidos ────────────────
+        if (!iaAtiva) {
+            if (temAtivacao && cmd.isEmpty()) {
+                // Chamou só o nome — ativa a IA
+                try { ativarIA(); } catch (Exception e) { e.printStackTrace(); }
+                return;
+            }
+            if (temAtivacao && !cmd.isEmpty()) {
+                // Chamou o nome + comando — executa o comando sem ativar IA
+                try { tentarComando(cmd); } catch (Exception e) { e.printStackTrace(); }
+                return;
+            }
+            // Sem ativação — tenta comando direto (sem precisar chamar o nome)
+            try { tentarComando(texto); } catch (Exception e) { e.printStackTrace(); }
+            return;
+        }
+
+        // ── Modo com IA ativa ─────────────────────────────────────
+        ultimaFala = System.currentTimeMillis();
+
+        if (cmd.isEmpty()) return;
+
+        try {
+            boolean foiComando = tentarComando(cmd);
+
+            if (!foiComando) {
+                final String pergunta = cmd;
+                new Thread(new Runnable() {
+                    public void run() {
+                        try {
+                            if (!iaAtiva) return;
+                            falar("Deixa eu pensar...");
+                            if (!iaAtiva) return;
+                            String resposta = perguntarIA(pergunta);
+                            System.out.println("IA: " + resposta);
+                            if (!parar && iaAtiva) falar(resposta);
+                        } catch (Exception e) {
+                            System.out.println("Erro IA: " + e.getMessage());
+                        }
+                    }
+                }).start();
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ── Main ──────────────────────────────────────────────────────
+    public static void main(String[] args) throws Exception {
+
+        if (!SystemTray.isSupported()) {
+            System.out.println("SystemTray não suportado.");
+            return;
+        }
+
+        BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(Color.CYAN); g.fillOval(0, 0, 16, 16); g.dispose();
+
+        PopupMenu menu = new PopupMenu();
+        MenuItem sair = new MenuItem("Sair");
+        sair.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) { System.exit(0); }
+        });
+        menu.add(sair);
+
+        final TrayIcon trayIcon = new TrayIcon(image, "Jarvis", menu);
+        trayIcon.setImageAutoSize(true);
+        SystemTray.getSystemTray().add(trayIcon);
+
+        // Clique duplo ativa/desativa a IA
+        trayIcon.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    if (iaAtiva) desativarIA(); else ativarIA();
+                } catch (Exception ex) { ex.printStackTrace(); }
+            }
+        });
+
+        // Thread de timeout — só desativa a IA, não afeta comandos
+        new Thread(new Runnable() {
+            public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(2000);
+                        if (iaAtiva && System.currentTimeMillis() - ultimaFala > TIMEOUT_MS) {
+                            System.out.println("[Jarvis] Timeout — desativando IA.");
+                            desativarIA();
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }).start();
+
+        falar("Jarvis iniciado.");
+        trayIcon.displayMessage("Jarvis", "Comandos sempre ativos | Diga 'Ei Jarvis' para conversar", TrayIcon.MessageType.INFO);
+
+        Model model = new Model("C:/programacao/JARVIS/JARVIS/model/vosk-model-small-pt-0.3");
+        Recognizer rec = new Recognizer(model, 16000);
+
+        TargetDataLine mic = AudioSystem.getTargetDataLine(
+            new AudioFormat(16000, 16, 1, true, false));
+        mic.open();
+        mic.start();
+
+        byte[] buffer = new byte[4096];
+
+        while (true) {
+            int bytesRead = mic.read(buffer, 0, buffer.length);
+
+            if (rec.acceptWaveForm(buffer, bytesRead)) {
+                String resultado = rec.getResult();
+                JSONObject jsonVosk = new JSONObject(resultado);
+                String texto = jsonVosk.optString("text", "").trim().toLowerCase();
+
+                if (!texto.isEmpty()) {
+                    processar(texto);
+                }
+            }
+
+            Thread.sleep(20);
+        }
+    }
+}

@@ -1,0 +1,11 @@
+chave_gemini.txt
+chave_groq.txt
+contatos.txt
+crashlog.txt
+.metadata/
+.settings/
+bin/
+edge_cache/
+.classpath
+.project
+model/
